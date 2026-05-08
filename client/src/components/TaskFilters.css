@@ -1,0 +1,51 @@
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filters-status-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.filter-pill {
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1px solid #E5E7EB;
+  background: #ffffff;
+  color: #6B7280;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.filter-pill:hover { border-color: #4F46E5; color: #4F46E5; background: #EEF2FF; }
+
+.filter-pill.active {
+  background: #4F46E5;
+  color: #ffffff;
+  border-color: #4F46E5;
+  font-weight: 600;
+}
+
+.filter-clear-btn {
+  padding: 7px 14px;
+  border-radius: 20px;
+  border: 1px solid #FECACA;
+  background: #FEF2F2;
+  color: #DC2626;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.filter-clear-btn:hover { background: #FEE2E2; border-color: #FCA5A5; }
+
+@media (max-width: 480px) {
+  .filters-bar { gap: 8px; }
+  .filter-pill { padding: 6px 12px; font-size: 0.78rem; }
+}
