@@ -14,7 +14,8 @@ axios.defaults.withCredentials = true;
 function App() {
   const [tasks, setTasks] = useState([]);
   const [filters, setFilters] = useState({ search: "", status: "all" });
-  const [isUserInsideApp, setIsUserInsideApp] = useState(!!Cookies.get("token"));
+  // const [isUserInsideApp, setIsUserInsideApp] = useState(!!Cookies.get("token"));
+  const [isUserInsideApp, setIsUserInsideApp] = useState(false);
   const [showLoginPage, setShowLoginPage] = useState(true);
   const [activePage, setActivePage] = useState("ai");
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -40,6 +41,27 @@ function App() {
     }
   };
 
+  const checkAuth = async () => {
+  try {
+    const res = await axios.get(
+      `${process.env.REACT_APP_API_URL}/me`,
+      {
+        withCredentials: true
+      }
+    );
+
+    if (res.data) {
+      setIsUserInsideApp(true);
+    }
+
+  } catch (error) {
+    setIsUserInsideApp(false);
+  }
+
+};
+useEffect(() => {
+  checkAuth();
+}, []);
  // eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => {
   if (isUserInsideApp) fetchTasks();
