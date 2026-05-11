@@ -105,7 +105,7 @@ app.post("/login", async (req, res) => {
   httpOnly: true,
   secure: true,
   sameSite: "none",
-  maxAge: 24 * 60 * 60 * 1000
+  // maxAge: 24 * 60 * 60 * 1000
 });
 
     res.json({ message: "Login successful", name: user.name, email: user.email });
