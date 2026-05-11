@@ -13,7 +13,7 @@ function TaskList({ tasks, fetchTasks, onOpenCreate }) {
 
   const deleteTask = async (id) => {
     if (!window.confirm("Are you sure you want to delete this task?")) return;
-    await axios.delete(`http://localhost:5000/tasks/${id}`);
+    await axios.delete(`${process.env.REACT_APP_API_URL}/tasks/${id}`);
     fetchTasks();
   };
 
@@ -26,7 +26,7 @@ function TaskList({ tasks, fetchTasks, onOpenCreate }) {
   };
 
   const updateTask = async () => {
-    await axios.put(`http://localhost:5000/tasks/${editingId}`, {
+    await axios.put(`${process.env.REACT_APP_API_URL}/tasks/${editingId}`, {
       title: editTitle,
       description: editDescription,
       status: editStatus,
@@ -37,7 +37,7 @@ function TaskList({ tasks, fetchTasks, onOpenCreate }) {
   };
 
   const markAsCompleted = async (id) => {
-    await axios.patch(`http://localhost:5000/tasks/${id}/complete`);
+    await axios.patch(`${process.env.REACT_APP_API_URL}/tasks/${id}/complete`);
     fetchTasks();
   };
 

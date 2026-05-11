@@ -16,7 +16,7 @@ function TaskForm({ fetchTasks, onClose }) {
     if (!title.trim()) { alert("Please enter a task title"); return; }
     try {
       setLoading(true);
-      await axios.post("http://localhost:5000/tasks", {
+      await axios.post(`${process.env.REACT_APP_API_URL}/tasks`, {
         title, description, dueDate: dueDate || null, status,
       });
       fetchTasks();

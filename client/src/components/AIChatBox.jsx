@@ -38,7 +38,10 @@ function AIChatBox({ tasks, fetchTasks, userEmail, userName, chatMessages, setCh
     setInput("");
 
     try {
-      const res = await axios.post("http://localhost:5000/api/ai/agent", { message: msg });
+      const res = await axios.post(
+`${process.env.REACT_APP_API_URL}/api/ai/agent`,
+  { message: msg }
+);
       const aiMessage = { type: "ai", text: res.data.reply };
       setMessages((prev) => [...prev, aiMessage]);
       await fetchTasks();
@@ -57,7 +60,9 @@ function AIChatBox({ tasks, fetchTasks, userEmail, userName, chatMessages, setCh
   const handleClearHistory = async () => {
     if (!window.confirm("Clear all conversation history?")) return;
     try {
-      await axios.delete("http://localhost:5000/api/ai/history");
+      await axios.delete(
+  `${process.env.REACT_APP_API_URL}/api/ai/history`
+);
       setChatMessages([]);
     } catch (error) {
       console.error("Failed to clear history:", error);

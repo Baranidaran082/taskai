@@ -19,7 +19,10 @@ function Login({ setIsUserInsideApp, setShowLoginPage }) {
     try {
       setError("");
       setLoading(true);
-      const res = await axios.post("http://localhost:5000/login", { email, password });
+      const res = await axios.post(
+        `${process.env.REACT_APP_API_URL}/login`,
+        { email, password }
+      );
       Cookies.set("userEmail", email, { expires: 7 });
       Cookies.set("userName", res.data.name, { expires: 7 });
       setIsUserInsideApp(true);

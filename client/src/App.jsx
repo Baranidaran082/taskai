@@ -30,7 +30,7 @@ function App() {
       const params = new URLSearchParams();
       if (filters.search) params.append("search", filters.search);
       if (filters.status !== "all") params.append("status", filters.status);
-      const res = await axios.get(`http://localhost:5000/tasks?${params.toString()}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/tasks?${params.toString()}`);
       setTasks(res.data);
     } catch (err) {
       if (err.response?.status === 401) {
@@ -50,7 +50,7 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await axios.post("http://localhost:5000/logout");
+      await axios.post(`${process.env.REACT_APP_API_URL}/logout`);
     } catch (_) {}
     Cookies.remove("token");
     Cookies.remove("userEmail");

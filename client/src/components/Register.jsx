@@ -17,7 +17,11 @@ function Register({ setShowLoginPage }) {
     try {
       setError("");
       setLoading(true);
-      await axios.post("http://localhost:5000/register", { name, email, password });
+      await axios.post(`${process.env.REACT_APP_API_URL}/register`, {
+  name,
+  email,
+  password
+});
       alert("Account created! Please sign in.");
       setShowLoginPage(true);
     } catch (err) {
