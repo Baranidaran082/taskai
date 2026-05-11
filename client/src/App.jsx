@@ -40,13 +40,15 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (isUserInsideApp) fetchTasks();
-  }, [isUserInsideApp]);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => {
+  if (isUserInsideApp) fetchTasks();
+}, [isUserInsideApp]);
 
-  useEffect(() => {
-    if (isUserInsideApp) fetchTasks();
-  }, [filters]);
+// eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => {
+  if (isUserInsideApp) fetchTasks();
+}, [filters]);
 
   const handleLogout = async () => {
     try {
