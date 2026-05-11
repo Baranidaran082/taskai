@@ -129,21 +129,6 @@ app.use("/", authMiddleware, taskRoutes);
 // AI Agent Routes (with auth middleware)
 app.use("/api/ai", authMiddleware, aiAgentRoutes);
 
-app.get("/me", authMiddleware, async (req, res) => {
-  try {
-
-    const user = await User.findById(req.user.id).select("-password");
-
-    res.json(user);
-
-  } catch (error) {
-
-    res.status(500).json({
-      message: error.message
-    });
-
-  }
-});
 
 // Start Server
 app.listen(5000, () => {
