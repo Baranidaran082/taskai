@@ -25,6 +25,7 @@ function Login({ setIsUserInsideApp, setShowLoginPage }) {
       );
       Cookies.set("userEmail", email, { expires: 7 });
       Cookies.set("userName", res.data.name, { expires: 7 });
+      sessionStorage.setItem("sessionActive", "true");
       setIsUserInsideApp(true);
     } catch (err) {
       Cookies.remove("token");

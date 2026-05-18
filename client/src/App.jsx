@@ -27,7 +27,14 @@ function App() {
   const userInitial = userName ? userName[0].toUpperCase() : "U";
 
   // On mount, verify auth with the server (httpOnly cookie is sent automatically)
+  // Also check sessionStorage flag — cleared when tab/browser is closed
   useEffect(() => {
+    const sessionActive = sessionStorage.getItem("sessionActive");
+    if (!sessionActive) {
+      // Tab was closed and reopened — treat as logged out
+      setAuthChecked(true);
+      return;
+    }
     axios
       .get(`${process.env.REACT_APP_API_URL}/me`)
       .then(() => setIsUserInsideApp(true))
@@ -67,6 +74,7 @@ useEffect(() => {
     Cookies.remove("token");
     Cookies.remove("userEmail");
     Cookies.remove("userName");
+    sessionStorage.removeItem("sessionActive");
     setChatMessages([]); // clear chat on logout
     setIsUserInsideApp(false);
   };
