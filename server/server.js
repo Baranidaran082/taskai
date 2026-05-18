@@ -123,6 +123,11 @@ app.post("/logout", (req, res) => {
 });
 
 
+// Verify auth status
+app.get("/me", authMiddleware, (req, res) => {
+  res.json({ authenticated: true });
+});
+
 // Task Routes (manual CRUD)
 app.use("/", authMiddleware, taskRoutes);
 

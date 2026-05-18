@@ -14,7 +14,8 @@ axios.defaults.withCredentials = true;
 function App() {
   const [tasks, setTasks] = useState([]);
   const [filters, setFilters] = useState({ search: "", status: "all" });
-  const [isUserInsideApp, setIsUserInsideApp] = useState(!!Cookies.get("token"));
+  const [isUserInsideApp, setIsUserInsideApp] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [showLoginPage, setShowLoginPage] = useState(true);
   const [activePage, setActivePage] = useState("ai");
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -24,6 +25,15 @@ function App() {
   const userEmail = Cookies.get("userEmail") || "";
   const userName = Cookies.get("userName") || userEmail.split("@")[0] || "User";
   const userInitial = userName ? userName[0].toUpperCase() : "U";
+
+  // On mount, verify auth with the server (httpOnly cookie is sent automatically)
+  useEffect(() => {
+    axios
+      .get(`${process.env.REACT_APP_API_URL}/me`)
+      .then(() => setIsUserInsideApp(true))
+      .catch(() => setIsUserInsideApp(false))
+      .finally(() => setAuthChecked(true));
+  }, []);
 
   const fetchTasks = async () => {
     try {
@@ -62,6 +72,8 @@ useEffect(() => {
   };
 
   // Auth screens
+  if (!authChecked) return null; // wait for server auth check before rendering
+
   if (!isUserInsideApp) {
     if (showLoginPage) {
       return <Login setIsUserInsideApp={setIsUserInsideApp} setShowLoginPage={setShowLoginPage} />;
