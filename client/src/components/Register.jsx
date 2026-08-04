@@ -14,15 +14,19 @@ function Register({ setShowLoginPage }) {
       setError("Please fill in all fields.");
       return;
     }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
     try {
       setError("");
       setLoading(true);
       await axios.post(`${process.env.REACT_APP_API_URL}/register`, {
-  name,
-  email,
-  password
-});
-      alert("Account created! Please sign in.");
+        name: name.trim(),
+        email: email.trim(),
+        password,
+      });
+      window.alert("Account created! Please sign in.");
       setShowLoginPage(true);
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed. Please try again.");

@@ -1,20 +1,46 @@
+// Must be the first import: ES module bodies are evaluated in import order, so
+// loading .env here guarantees process.env is populated before the route
+// modules below are evaluated.
+import "dotenv/config";
+
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import axios from "axios";
 import cookieParser from "cookie-parser";
 import aiAgentRoutes from "./routes/aiAgentRoutes.js";
 import User from "./models/User.js";
 import taskRoutes from "./routes/taskRoutes.js";
-import dotenv from "dotenv";
+
+const PORT = process.env.PORT || 5000;
+const IS_PROD = process.env.NODE_ENV === "production";
+const TOKEN_MAX_AGE = 24 * 60 * 60 * 1000; // 24h — keep in sync with JWT expiresIn
+
+// Allow the deployed frontend plus local development origins.
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "https://taskai-mern.vercel.app",
+  "http://localhost:3000"
+].filter(Boolean);
+
+// Cookie options must be identical when setting and clearing, otherwise the
+// browser will not remove the cookie on logout.
+const cookieOptions = {
+  httpOnly: true,
+  secure: IS_PROD,
+  sameSite: IS_PROD ? "none" : "lax"
+};
 
 const app = express();
 
 app.use(
   cors({
-    origin: "https://taskai-mern.vercel.app",
+    origin: (origin, callback) => {
+      // Allow non-browser clients (curl, health checks) which send no origin.
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+    },
     credentials: true
   })
 );
@@ -22,14 +48,20 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+if (!process.env.MONGO_URI) {
+  console.error("MONGO_URI is not set. Add it to server/.env before starting.");
+  process.exit(1);
+}
 
-
-dotenv.config();
+if (!process.env.JWT_SECRET) {
+  console.error("JWT_SECRET is not set. Add it to server/.env before starting.");
+  process.exit(1);
+}
 
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log(err));
+  .catch((err) => console.error("MongoDB connection failed:", err.message));
 
 
 // Auth Middleware
@@ -41,13 +73,11 @@ const authMiddleware = (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    req.user = decoded;
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
 
   } catch (error) {
-    res.status(401).json({ message: "Invalid token" });
+    res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 
@@ -55,26 +85,40 @@ const authMiddleware = (req, res, next) => {
 // Register
 app.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password } = req.body || {};
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({ message: "Name is required" });
+    if (!name?.trim() || !email?.trim() || !password) {
+      return res
+        .status(400)
+        .json({ message: "Name, email and password are required" });
+    }
+
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({ message: "Email is already registered" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = new User({
+    await User.create({
       name: name.trim(),
-      email,
+      email: normalizedEmail,
       password: hashedPassword
     });
 
-    await user.save();
-
-    res.json({ message: "User registered successfully" });
+    res.status(201).json({ message: "User registered successfully" });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Register error:", error);
+    res.status(500).json({ message: "Registration failed" });
   }
 });
 
@@ -82,43 +126,46 @@ app.post("/register", async (req, res) => {
 // Login
 app.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
-    const user = await User.findOne({ email });
+    if (!email?.trim() || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+    // Same message for both cases so the endpoint does not reveal which
+    // emails exist.
+    const invalid = { message: "Invalid email or password" };
 
     if (!user) {
-      return res.status(400).json({ message: "User not found" });
+      return res.status(400).json(invalid);
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(400).json({ message: "Wrong password" });
+      return res.status(400).json(invalid);
     }
 
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET
-    );
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "24h"
+    });
 
-    res.cookie("token", token, {
-  httpOnly: true,
-  secure: true,
-  sameSite: "none",
-  // maxAge: 24 * 60 * 60 * 1000
-});
+    res.cookie("token", token, { ...cookieOptions, maxAge: TOKEN_MAX_AGE });
 
     res.json({ message: "Login successful", name: user.name, email: user.email });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Login failed" });
   }
 });
 
 
 // Logout
 app.post("/logout", (req, res) => {
-  res.clearCookie("token");
+  res.clearCookie("token", cookieOptions);
   res.json({ message: "Logged out successfully" });
 });
 
@@ -136,6 +183,6 @@ app.use("/api/ai", authMiddleware, aiAgentRoutes);
 
 
 // Start Server
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

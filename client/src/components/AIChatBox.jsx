@@ -18,11 +18,33 @@ function getGreeting() {
   return "Good Evening";
 }
 
-function AIChatBox({ tasks, fetchTasks, userEmail, userName, chatMessages, setChatMessages }) {
+function AIChatBox({ fetchTasks, userEmail, userName, chatMessages, setChatMessages }) {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = [chatMessages, setChatMessages];
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
+
+  // Conversation state lives in App so it survives tab switches.
+  const messages = chatMessages;
+  const setMessages = setChatMessages;
+
+  // Restore the server-side conversation once, so a page reload does not show
+  // an empty chat while the assistant still remembers the conversation.
+  useEffect(() => {
+    let cancelled = false;
+
+    axios
+      .get(`${process.env.REACT_APP_API_URL}/api/ai/history`)
+      .then((res) => {
+        if (!cancelled && res.data.messages?.length) {
+          setChatMessages((prev) => (prev.length ? prev : res.data.messages));
+        }
+      })
+      .catch((error) => console.error("Failed to load chat history:", error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setChatMessages]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,9 +61,9 @@ function AIChatBox({ tasks, fetchTasks, userEmail, userName, chatMessages, setCh
 
     try {
       const res = await axios.post(
-`${process.env.REACT_APP_API_URL}/api/ai/agent`,
-  { message: msg }
-);
+        `${process.env.REACT_APP_API_URL}/api/ai/agent`,
+        { message: msg }
+      );
       const aiMessage = { type: "ai", text: res.data.reply };
       setMessages((prev) => [...prev, aiMessage]);
       await fetchTasks();
@@ -60,12 +82,11 @@ function AIChatBox({ tasks, fetchTasks, userEmail, userName, chatMessages, setCh
   const handleClearHistory = async () => {
     if (!window.confirm("Clear all conversation history?")) return;
     try {
-      await axios.delete(
-  `${process.env.REACT_APP_API_URL}/api/ai/history`
-);
+      await axios.delete(`${process.env.REACT_APP_API_URL}/api/ai/history`);
       setChatMessages([]);
     } catch (error) {
       console.error("Failed to clear history:", error);
+      window.alert("Could not clear the conversation. Please try again.");
     }
   };
 

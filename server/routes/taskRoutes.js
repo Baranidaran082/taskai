@@ -9,14 +9,33 @@ import {
 
 const router = express.Router();
 
+/**
+ * Turns a thrown error into an HTTP response.
+ * Mongoose CastError means the :id in the URL is not a valid ObjectId, which is
+ * a client mistake (400) rather than a server failure.
+ */
+const sendError = (res, error) => {
+  if (error.name === "CastError") {
+    return res.status(400).json({ message: "Invalid task id" });
+  }
+  if (error.name === "ValidationError") {
+    return res.status(400).json({ message: error.message });
+  }
+
+  const status = error.status || 500;
+  if (status === 500) console.error("Task route error:", error);
+
+  return res.status(status).json({ message: error.message });
+};
+
 
 // CREATE TASK
 router.post("/tasks", async (req, res) => {
   try {
     const task = await createTask(req.body, req.user.id);
-    res.json(task);
+    res.status(201).json(task);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    sendError(res, error);
   }
 });
 
@@ -27,7 +46,7 @@ router.get("/tasks", async (req, res) => {
     const tasks = await getTasks(req.user.id, req.query);
     res.json(tasks);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    sendError(res, error);
   }
 });
 
@@ -35,15 +54,10 @@ router.get("/tasks", async (req, res) => {
 // UPDATE TASK
 router.put("/tasks/:id", async (req, res) => {
   try {
-    const task = await updateTask(
-      req.params.id,
-      req.user.id,
-      req.body
-    );
-
+    const task = await updateTask(req.params.id, req.user.id, req.body);
     res.json(task);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    sendError(res, error);
   }
 });
 
@@ -51,14 +65,10 @@ router.put("/tasks/:id", async (req, res) => {
 // COMPLETE TASK
 router.patch("/tasks/:id/complete", async (req, res) => {
   try {
-    const task = await completeTask(
-      req.params.id,
-      req.user.id
-    );
-
+    const task = await completeTask(req.params.id, req.user.id);
     res.json(task);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    sendError(res, error);
   }
 });
 
@@ -66,14 +76,10 @@ router.patch("/tasks/:id/complete", async (req, res) => {
 // DELETE TASK
 router.delete("/tasks/:id", async (req, res) => {
   try {
-    const result = await deleteTask(
-      req.params.id,
-      req.user.id
-    );
-
-    res.json(result);
+    await deleteTask(req.params.id, req.user.id);
+    res.json({ message: "Task deleted successfully" });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    sendError(res, error);
   }
 });
 

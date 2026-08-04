@@ -3,7 +3,7 @@ import TaskList from "./components/Tasklist.jsx";
 import TaskFilters from "./components/TaskFilters.jsx";
 import Login from "./components/Login.jsx";
 import Register from "./components/Register.jsx";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import "./App.css";
 import AIChatBox from "./components/AIChatBox";
 import axios from "axios";
@@ -42,7 +42,7 @@ function App() {
       .finally(() => setAuthChecked(true));
   }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (filters.search) params.append("search", filters.search);
@@ -51,27 +51,26 @@ function App() {
       setTasks(res.data);
     } catch (err) {
       if (err.response?.status === 401) {
-        Cookies.remove("token");
+        sessionStorage.removeItem("sessionActive");
         setIsUserInsideApp(false);
       }
     }
-  };
+  }, [filters]);
 
- // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => {
-  if (isUserInsideApp) fetchTasks();
-}, [isUserInsideApp]);
-
-// eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => {
-  if (isUserInsideApp) fetchTasks();
-}, [filters]);
+  // Runs on login and on every filter change. fetchTasks is memoised on
+  // `filters`, so a single effect covers both cases without double-fetching.
+  useEffect(() => {
+    if (isUserInsideApp) fetchTasks();
+  }, [isUserInsideApp, fetchTasks]);
 
   const handleLogout = async () => {
     try {
       await axios.post(`${process.env.REACT_APP_API_URL}/logout`);
-    } catch (_) {}
-    Cookies.remove("token");
+    } catch (err) {
+      console.error("Logout request failed:", err);
+    }
+    // The auth token is an httpOnly cookie cleared by the server; only the
+    // display-name cookies are readable from JS.
     Cookies.remove("userEmail");
     Cookies.remove("userName");
     sessionStorage.removeItem("sessionActive");
@@ -210,7 +209,6 @@ useEffect(() => {
 
           {activePage === "ai" && (
             <AIChatBox
-              tasks={tasks}
               fetchTasks={fetchTasks}
               userEmail={userEmail}
               userName={userName}

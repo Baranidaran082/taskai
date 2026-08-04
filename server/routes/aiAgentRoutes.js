@@ -15,7 +15,21 @@ import {
 
 const router = express.Router();
 
-// ─── Gemini Client Setup (initialized inside handler to ensure env is ready) ──
+// ─── Gemini Client Setup ──────────────────────────────────────────────────────
+// Created lazily on first request and reused afterwards, so a missing API key
+// surfaces as a normal request error instead of crashing the server at boot.
+let genAI = null;
+
+function getGeminiClient() {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not defined in environment variables.");
+    }
+    genAI = new GoogleGenerativeAI(apiKey);
+  }
+  return genAI;
+}
 
 // ─── Function Declarations (Tool Schema) ─────────────────────────────────────
 const taskFunctionDeclarations = [
@@ -243,9 +257,9 @@ async function executeToolCall(fnName, args, userId) {
 
     case "deleteTask": {
       if (args.taskId) {
-        await deleteTask(args.taskId, userId);
-        return `Task deleted successfully.`;
-      } 
+        const deleted = await deleteTask(args.taskId, userId);
+        return `Task "${deleted.title}" deleted successfully.`;
+      }
       
       if (args.title) {
         // Find tasks matching this title
@@ -304,20 +318,15 @@ router.post("/agent", async (req, res) => {
 
     console.log("AI Agent Request:", { message, userId });
 
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not defined in environment variables.");
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const today = new Date().toISOString().split("T")[0];
 
     // Initialise Gemini model with tool declarations
-    const model = genAI.getGenerativeModel({
+    const model = getGeminiClient().getGenerativeModel({
       model: "gemini-2.5-flash",
       tools: [{ functionDeclarations: taskFunctionDeclarations }],
       systemInstruction:
         `You are an intelligent task management assistant. ` +
-        `Today's date is ${new Date().toISOString().split("T")[0]}. ` +
+        `Today's date is ${today}. ` +
         `Use the provided tools to create, list, update, delete, or complete tasks on behalf of the user. ` +
         `IMPORTANT: Never use markdown formatting like **bold**, *italic*, or backticks in your responses. Use plain text only. ` +
         `When the user wants to CREATE a task, you MUST collect ALL of the following details before calling the createTask tool. Ask for all of them in ONE single message: ` +
@@ -327,7 +336,7 @@ router.post("/agent", async (req, res) => {
         `4. Status - ask them to choose from: Pending, In Progress, or Completed (default is Pending) ` +
         `Ask all questions together in one message like: "Please provide the following details to create your task: Title, Description, Due date, Status (Pending / In Progress / Completed)". ` +
         `Only call createTask after the user has provided at least the title. Use defaults for anything not provided (status = Pending, no due date, no description). ` +
-        `When the user asks for "today's tasks", call getTasks with dueDateFrom and dueDateTo both set to today's date (${new Date().toISOString().split("T")[0]}). ` +
+        `When the user asks for "today's tasks", call getTasks with dueDateFrom and dueDateTo both set to today's date (${today}). ` +
         `When a task ID is needed and the user has not provided one, ask them to share it or suggest listing tasks first.`,
     });
 
@@ -342,23 +351,38 @@ router.post("/agent", async (req, res) => {
     const result = await chat.sendMessage(message.trim());
     const response = result.response;
 
-    // ── Step 4: Check if Gemini requested a tool call ──
-    const candidate = response.candidates?.[0];
-    const parts = candidate?.content?.parts ?? [];
-    const functionCallPart = parts.find((p) => p.functionCall);
+    // ── Step 4: Check if Gemini requested any tool calls ──
+    // A single turn can contain more than one functionCall (e.g. "create two
+    // tasks"), so every one of them is executed, not just the first.
+    const parts = response.candidates?.[0]?.content?.parts ?? [];
+    const functionCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
 
     let finalReply;
 
-    if (functionCallPart) {
-      const { name: fnName, args } = functionCallPart.functionCall;
-      console.log("Gemini Tool Call:", { fnName, args });
+    if (functionCalls.length > 0) {
+      const results = [];
 
-      // Execute the tool
-      finalReply = await executeToolCall(fnName, args, userId);
+      for (const { name: fnName, args } of functionCalls) {
+        console.log("Gemini Tool Call:", { fnName, args });
+        try {
+          results.push(await executeToolCall(fnName, args ?? {}, userId));
+        } catch (toolError) {
+          // A failing tool (missing task, invalid id, ...) is a normal
+          // conversational outcome, not a server error.
+          console.error("Tool Error:", fnName, toolError.message);
+          results.push(
+            toolError.status === 404 || toolError.name === "CastError"
+              ? "I couldn't find that task. Try listing your tasks first to get the right ID."
+              : `I couldn't complete that action: ${toolError.message}`
+          );
+        }
+      }
+
+      finalReply = results.join("\n\n");
       console.log("Tool Result:", finalReply);
     } else {
       // Plain text response
-      finalReply = response.text();
+      finalReply = response.text()?.trim() || "I'm not sure how to help with that.";
       console.log("Gemini Text Reply:", finalReply);
     }
 
@@ -373,6 +397,26 @@ router.post("/agent", async (req, res) => {
       error: "AI Agent encountered an error.",
       message: error.message,
     });
+  }
+});
+
+// ─── Get Chat History Route ───────────────────────────────────────────────────
+// The conversation is persisted server-side, so the UI needs a way to restore
+// it after a page reload — otherwise the chat looks empty while the model still
+// remembers the conversation.
+router.get("/history", async (req, res) => {
+  try {
+    const history = await getChatHistory(req.user.id);
+
+    const messages = history.map((entry) => ({
+      type: entry.role === "user" ? "user" : "ai",
+      text: entry.parts.map((part) => part.text).join(""),
+    }));
+
+    return res.json({ messages });
+  } catch (error) {
+    console.error("Get History Error:", error);
+    return res.status(500).json({ error: "Failed to load chat history." });
   }
 });
 

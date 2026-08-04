@@ -12,17 +12,23 @@ function TaskForm({ fetchTasks, onClose }) {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e && e.preventDefault();
-    if (!title.trim()) { alert("Please enter a task title"); return; }
+    e?.preventDefault();
+    if (!title.trim()) {
+      window.alert("Please enter a task title");
+      return;
+    }
     try {
       setLoading(true);
       await axios.post(`${process.env.REACT_APP_API_URL}/tasks`, {
-        title, description, dueDate: dueDate || null, status,
+        title: title.trim(),
+        description: description.trim(),
+        dueDate: dueDate || null,
+        status,
       });
       fetchTasks();
       onClose();
     } catch (error) {
-      alert("Failed to add task");
+      window.alert(error.response?.data?.message || "Failed to add task");
     } finally {
       setLoading(false);
     }

@@ -13,32 +13,48 @@ function TaskList({ tasks, fetchTasks, onOpenCreate }) {
 
   const deleteTask = async (id) => {
     if (!window.confirm("Are you sure you want to delete this task?")) return;
-    await axios.delete(`${process.env.REACT_APP_API_URL}/tasks/${id}`);
-    fetchTasks();
+    try {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/tasks/${id}`);
+      fetchTasks();
+    } catch (error) {
+      window.alert(error.response?.data?.message || "Failed to delete task");
+    }
   };
 
   const startEdit = (task) => {
     setEditingId(task._id);
     setEditTitle(task.title);
-    setEditDescription(task.description);
+    setEditDescription(task.description || "");
     setEditStatus(task.status);
     setEditDueDate(task.dueDate ? task.dueDate.split("T")[0] : "");
   };
 
   const updateTask = async () => {
-    await axios.put(`${process.env.REACT_APP_API_URL}/tasks/${editingId}`, {
-      title: editTitle,
-      description: editDescription,
-      status: editStatus,
-      dueDate: editDueDate || null,
-    });
-    setEditingId(null);
-    fetchTasks();
+    if (!editTitle.trim()) {
+      window.alert("Task title cannot be empty");
+      return;
+    }
+    try {
+      await axios.put(`${process.env.REACT_APP_API_URL}/tasks/${editingId}`, {
+        title: editTitle.trim(),
+        description: editDescription,
+        status: editStatus,
+        dueDate: editDueDate || null,
+      });
+      setEditingId(null);
+      fetchTasks();
+    } catch (error) {
+      window.alert(error.response?.data?.message || "Failed to update task");
+    }
   };
 
   const markAsCompleted = async (id) => {
-    await axios.patch(`${process.env.REACT_APP_API_URL}/tasks/${id}/complete`);
-    fetchTasks();
+    try {
+      await axios.patch(`${process.env.REACT_APP_API_URL}/tasks/${id}/complete`);
+      fetchTasks();
+    } catch (error) {
+      window.alert(error.response?.data?.message || "Failed to complete task");
+    }
   };
 
   const getStatusClass = (status) => {
@@ -57,9 +73,13 @@ function TaskList({ tasks, fetchTasks, onOpenCreate }) {
     });
   };
 
+  // Due dates are stored at midnight, so comparing them directly against `now`
+  // marked tasks due *today* as overdue. Compare against the end of the day.
   const isOverdue = (dueDate, status) => {
     if (!dueDate || status === "Completed") return false;
-    return new Date(dueDate) < new Date();
+    const endOfDueDay = new Date(dueDate);
+    endOfDueDay.setHours(23, 59, 59, 999);
+    return endOfDueDay < new Date();
   };
 
   return (

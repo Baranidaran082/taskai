@@ -21,14 +21,13 @@ function Login({ setIsUserInsideApp, setShowLoginPage }) {
       setLoading(true);
       const res = await axios.post(
         `${process.env.REACT_APP_API_URL}/login`,
-        { email, password }
+        { email: email.trim(), password }
       );
-      Cookies.set("userEmail", email, { expires: 7 });
+      Cookies.set("userEmail", res.data.email, { expires: 7 });
       Cookies.set("userName", res.data.name, { expires: 7 });
       sessionStorage.setItem("sessionActive", "true");
       setIsUserInsideApp(true);
     } catch (err) {
-      Cookies.remove("token");
       setError(err.response?.data?.message || "Login failed. Please try again.");
     } finally {
       setLoading(false);
